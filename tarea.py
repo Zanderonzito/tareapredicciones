@@ -4,11 +4,11 @@ import pandas as pd
 import numpy as np
 
 from sklearn.linear_model import LinearRegression
-from sklearn.metrics import r2_score, mean_absolute_error
 
 temporadas = ["2020", "2021", "2022", "2023", "2024", "2025", "2026"]
 
 todos_partidos = []
+lista_goles = []
 
 for año in temporadas:
 
@@ -34,7 +34,7 @@ for partido in todos_partidos:
         goles_local = int(partido["intHomeScore"])
         goles_visita = int(partido["intAwayScore"])
 
-        if "católica" in local or "catolica" in local:
+        if "católica" in local:
 
             if goles_local > goles_visita:
                 resultado = 1
@@ -44,8 +44,9 @@ for partido in todos_partidos:
                 resultado = 0
 
             lista.append(resultado)
+            lista_goles.append(goles_local + goles_visita)
 
-        elif "católica" in visita or "catolica" in visita:
+        elif "católica" in visita:
 
             if goles_visita > goles_local:
                 resultado = 1
@@ -55,35 +56,30 @@ for partido in todos_partidos:
                 resultado = 0
 
             lista.append(resultado)
+            lista_goles.append(goles_local + goles_visita)
 
 
 df = pd.DataFrame({"resultado": lista})
 
 x = np.array(range(1, len(df) + 1)).reshape(-1, 1)
 y = np.array(df["resultado"])
+y_goles = np.array(lista_goles)
 
 modelo = LinearRegression()
 modelo.fit(x, y)
+modelo_goles = LinearRegression()
+modelo_goles.fit(x, y_goles)
 
 # prediccion
 proximo = len(df) + 1
 
 prediccion = modelo.predict([[proximo]])[0]
-
-if prediccion < 0:
-    prediccion = 0
-
-if prediccion > 1:
-    prediccion = 1
+pred_goles = modelo_goles.predict([[proximo]])[0]
 
 y_pred = modelo.predict(x)
-
-r2 = r2_score(y, y_pred)
-mae = mean_absolute_error(y, y_pred)
 
 # resultados
 
 print()
-print("Probabilidad estimada de que Universidad Católica gane su proximo partido:",
-      round(prediccion * 100, 2), "%")
-
+print("Probabilidad de que Universidad Católica gane su proximo partido:", round(prediccion * 100, 2), "%")
+print("\nGoles esperados:", round(pred_goles, 2))
