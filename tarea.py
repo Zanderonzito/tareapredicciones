@@ -24,7 +24,7 @@ def cargar_datos():
     if os.path.exists(CSV_PATH):
         df = pd.read_csv(CSV_PATH)
         # verifico que tenga todas las columnas que necesito
-        if all(c in df.columns for c in ['resultado','goles_totales','corners','amarillas']):
+        if all(c in df.columns for c in ['resultado','goles_totales','goles_uc','goles_rival']):
             print(f"cargando desde csv... {len(df)} partidos encontrados")
             return df
         os.remove(CSV_PATH)
