@@ -114,7 +114,6 @@ def predecir_partido(df):
     # un modelo por variable, todos con regresion lineal simple
     m_resultado  = LinearRegression().fit(X, df['resultado'])
     m_goles      = LinearRegression().fit(X, df['goles_totales'])
-    m_goles_uc  = LinearRegression().fit(X, df['goles_uc'])
 
     sig = pd.DataFrame({'n_partido': [len(df)+1]})
 
