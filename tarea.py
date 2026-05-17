@@ -5,6 +5,8 @@ import os
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
+from sklearn.metrics import r2_score
+from sklearn.preprocessing import LabelEncoder
 from dotenv import load_dotenv
 
 load_dotenv()  # lee el .env automaticamente
@@ -107,6 +109,25 @@ def hacer_graficos(df):
     plt.tight_layout()
     plt.show()
 
+def calcular_r2(df):
+    df_modelo = df.copy()
+    df_modelo['es_local'] = (df_modelo['condicion'] == 'Local').astype(int)
+
+    features = ['goles_uc', 'goles_rival', 'goles_totales', 'n_partido', 'es_local']
+    X = df_modelo[features]
+    y = df_modelo['resultado']
+
+    modelo = LinearRegression()
+    modelo.fit(X, y)
+
+    y_pred = modelo.predict(X)
+    r2 = r2_score(y, y_pred)
+
+    print("        R² DEL MODELO      ")
+    print(f"  R²           : {r2:.4f}")
+    print(f"  Explicado    : {r2*100:.2f}%")
+
+    return r2
 
 def predecir_partido(df):
     X = df[['n_partido']]
@@ -119,24 +140,43 @@ def predecir_partido(df):
 
     r = m_resultado.predict(sig)[0]
     g = m_goles.predict(sig)[0]
-    print("\n=======================================")
-    print("  prediccion para UC vs La Calera")
-    print("=======================================")
+
+    print("  prediccion para UC vs La Calera\n")
     print(f"  resultado esperado : {'GANA UC' if r > 0.5 else 'NO gana UC'}")
     print(f"  goles totales      : {g:.2f}  ")
-    print("=======================================\n")
 
+def regresion_multiple(df):
+    df_modelo = df.copy()
+    df_modelo['es_local'] = (df_modelo['condicion'] == 'Local').astype(int)
+
+    features = ['goles_uc', 'goles_rival', 'goles_totales', 'n_partido', 'es_local']
+    X = df_modelo[features]
+    y = df_modelo['resultado']
+
+    modelo = LinearRegression()
+    modelo.fit(X, y)
+
+    print("     REGRESIÓN MÚLTIPLE - UC 2022-2024   ")
+    print("\n  Coeficientes del modelo:")
+    for feat, coef in zip(features, modelo.coef_):
+        print(f"    {feat:>15} : {coef:+.4f}")
+    print(f"    {'intercepto':>15} : {modelo.intercept_:+.4f}")
+
+
+    return modelo
 
 def main():
     df = cargar_datos()
 
-    opciones = {'1','2','3','4'}
+    opciones = {'1','2','3','4','5','6'}
     while True:
         print("\n--- menu ---")
         print("1. ver datos")
         print("2. graficos")
         print("3. prediccion vs calera")
-        print("4. salir")
+        print("4. ver R² del modelo")
+        print("5. regresion multiple")
+        print("6. salir")
 
         op = input(">> ").strip()
         if op not in opciones:
@@ -146,7 +186,9 @@ def main():
         if   op == '1': print(df.head(20).to_string())
         elif op == '2': hacer_graficos(df)
         elif op == '3': predecir_partido(df)
-        elif op == '4': break
+        elif op == '4': calcular_r2(df)
+        elif op == '5': regresion_multiple(df)
+        elif op == '6': break
 
 
 if __name__ == "__main__":
