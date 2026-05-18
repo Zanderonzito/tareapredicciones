@@ -133,7 +133,33 @@ def hacer_graficos(df):
     plt.tight_layout()
     plt.show()
 
-
+def graficar_residuos(y_test, y_pred, titulo):
+    residuos = y_test - y_pred
+    nombre = titulo.lower().replace(" ", "_")
+ 
+    # grafico de residuos vs predichos
+    plt.figure(figsize=(10, 6))
+    plt.scatter(y_pred, residuos, alpha=0.6)
+    plt.axhline(y=0, color="r", linestyle="--", lw=2)
+    plt.xlabel("Valores Predichos")
+    plt.ylabel("Residuos")
+    plt.title(f"Gráfico de Residuos — {titulo}")
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"residuos_{nombre}.png", dpi=300, bbox_inches="tight")
+    plt.show()
+ 
+    # histograma de residuos
+    plt.figure(figsize=(10, 6))
+    plt.hist(residuos, bins=30, edgecolor="black", alpha=0.7)
+    plt.xlabel("Residuo")
+    plt.ylabel("Frecuencia")
+    plt.title(f"Distribución de Residuos — {titulo}")
+    plt.axvline(x=0, color="r", linestyle="--", lw=2)
+    plt.grid(True, alpha=0.3)
+    plt.tight_layout()
+    plt.savefig(f"distribucion_residuos_{nombre}.png", dpi=300, bbox_inches="tight")
+    plt.show()
 # -------------------------------------------------------
 # ENTRENAMIENTO — REGRESION LINEAL
 # entrena solo con X_train, evalua en X_test (datos que no vio)
@@ -176,7 +202,7 @@ def entrenar_lineal(df):
     plt.legend()
     plt.tight_layout()
     plt.show()
-
+    graficar_residuos(y_test, y_pred, "Regresion Lineal")
     # guardar solo el modelo entrenado con X_train
     with open(LR_MODEL, "wb") as f:
         pickle.dump(modelo, f)
@@ -297,7 +323,7 @@ def entrenar_rf(df):
     plt.legend()
     plt.tight_layout()
     plt.show()
-
+    graficar_residuos(y_test, y_pred, "Random Forest")
     # guardar el modelo entrenado solo con X_train
     with open(RF_MODEL, "wb") as f:
         pickle.dump(modelo, f)
