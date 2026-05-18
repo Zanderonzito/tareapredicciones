@@ -1,8 +1,8 @@
-import requests #SI APARECE ERROR : CAMBIAR INTERPRETE DE PYTHON 3.11 (GLOBAL)
+import requests #SI APARECE ERROR CAMBIAR INTERPRETE (3.11 [GLOBAL])
 import pandas as pd
 import numpy as np
 import os
-import pickle #GUARDAR MODELO ENTRENADO
+import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.linear_model import LinearRegression
@@ -17,17 +17,22 @@ API_KEY = os.getenv("API_KEY")
 TEAM_ID = int(os.getenv("TEAM_ID", "0"))
 
 CSV_PATH = "datos_catolica.csv"
-LR_MODEL = "modelo_lineal.pkl"   # pkl de regresion lineal
-RF_MODEL = "modelo_rf.pkl"       # pkl de random forest
+
+# Modelos para predecir Resultado
+LR_MODEL = "modelo_lineal.pkl"       
+MLR_MODEL = "modelo_multiple.pkl"    
+RF_MODEL = "modelo_rf.pkl"           
+
+# Modelos para predecir Goles (UC vs Rival)
+REGRESION_GOLES_MODEL = "modelo_goles_regresion.pkl"
+RF_GOLES_MODEL = "modelo_goles_rf.pkl"
 
 headers = {
     "x-apisports-key":  API_KEY,
     "x-apisports-host": "v3.football.api-sports.io"
 }
 
-# columnas que usan ambos modelos
-FEATURES = ["goles_uc", "goles_rival", "goles_totales", "n_partido", "es_local"]
-
+FEATURES = ["n_partido", "es_local"]
 
 # -------------------------------------------------------
 # CARGA DE DATOS (API o CSV cache)
@@ -88,22 +93,28 @@ def cargar_datos():
 # FUNCION AUXILIAR — prepara X e y y hace el split
 # la uso en ambos modelos para que el split sea identico
 # -------------------------------------------------------
-def preparar_split(df):
+def preparar_split_resultado(df):
     df_m = df.copy()
     df_m["es_local"] = (df_m["condicion"] == "Local").astype(int)
 
     X = df_m[FEATURES]
     y = df_m["resultado"]
 
-    # 80% entrenamiento, 20% prueba — random_state fijo para reproducibilidad
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=0.2, random_state=42
-    )
-    return X_train, X_test, y_train, y_test
+    return train_test_split(X, y, test_size=0.2, random_state=42)
+
+def preparar_split_goles(df):
+    df_m = df.copy()
+    df_m["es_local"] = (df_m["condicion"] == "Local").astype(int)
+
+    X = df_m[FEATURES]
+    # Queremos predecir ambas cosas a la vez
+    y = df_m[["goles_uc", "goles_rival"]]
+
+    return train_test_split(X, y, test_size=0.2, random_state=42)
 
 
 # -------------------------------------------------------
-# GRAFICOS EXPLORATORIOS
+# GRAFICOS
 # -------------------------------------------------------
 def hacer_graficos(df):
     plt.style.use("ggplot")
@@ -133,289 +144,241 @@ def hacer_graficos(df):
     plt.tight_layout()
     plt.show()
 
-def graficar_residuos(y_test, y_pred, titulo):
-    residuos = y_test - y_pred
-    nombre = titulo.lower().replace(" ", "_")
- 
-    # grafico de residuos vs predichos
-    plt.figure(figsize=(10, 6))
-    plt.scatter(y_pred, residuos, alpha=0.6)
-    plt.axhline(y=0, color="r", linestyle="--", lw=2)
-    plt.xlabel("Valores Predichos")
-    plt.ylabel("Residuos")
-    plt.title(f"Gráfico de Residuos — {titulo}")
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f"residuos_{nombre}.png", dpi=300, bbox_inches="tight")
-    plt.show()
- 
-    # histograma de residuos
-    plt.figure(figsize=(10, 6))
-    plt.hist(residuos, bins=30, edgecolor="black", alpha=0.7)
-    plt.xlabel("Residuo")
-    plt.ylabel("Frecuencia")
-    plt.title(f"Distribución de Residuos — {titulo}")
-    plt.axvline(x=0, color="r", linestyle="--", lw=2)
-    plt.grid(True, alpha=0.3)
-    plt.tight_layout()
-    plt.savefig(f"distribucion_residuos_{nombre}.png", dpi=300, bbox_inches="tight")
-    plt.show()
-# -------------------------------------------------------
-# ENTRENAMIENTO — REGRESION LINEAL
-# entrena solo con X_train, evalua en X_test (datos que no vio)
-# guarda el modelo en LR_MODEL para usarlo en prediccion
-# -------------------------------------------------------
+
+# =======================================================
+# RESULTADOS - (ENTRENAMIENTO MODELO , PREDICCIÓN , COMPARACIÓN , RANDOM FOREST) //AYUDADO POR CLAUDE
+#entrena solo con X_train, evalua en X_test
+#guarda el modelo en X_MODEL para usarlo en prediccion
+#con pickle, para no re-entrenar el modelo
+# random forest con mismo split que la regresion lineal (random_state=42)
+# =======================================================
+
 def entrenar_lineal(df):
-    print("\n--- ENTRENAMIENTO REGRESION LINEAL MULTIPLE---\n")
-
-    X_train, X_test, y_train, y_test = preparar_split(df)
-    print(f"entrenamiento: {len(X_train)} partidos | prueba: {len(X_test)} partidos")
-
-    # entrenar solo con X_train
+    print("\n--- ENTRENAMIENTO REGRESION LINEAL SIMPLE ---\n")
+    X_train, X_test, y_train, y_test = preparar_split_resultado(df)
+    
     modelo = LinearRegression()
     modelo.fit(X_train, y_train)
 
-    # evaluar con X_test
-    y_train_pred = modelo.predict(X_train)
     y_pred = modelo.predict(X_test)
-
-    r2_train   = r2_score(y_train, y_train_pred)
-    rmse_train = np.sqrt(mean_squared_error(y_train, y_train_pred))
-    mae_train  = mean_absolute_error(y_train, y_train_pred)
-
     r2   = r2_score(y_test, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    mae  = mean_absolute_error(y_test, y_pred)
 
-    print(f"\nENTRENAMIENTO:")
-    print(f"  R²   : {r2_train:.4f}")
-    print(f"  RMSE : {rmse_train:.4f}")
-    print(f"  MAE  : {mae_train:.4f}")
-
-    print(f"\nPRUEBA:")
     print(f"  R²   : {r2:.4f}")
     print(f"  RMSE : {rmse:.4f}")
-    print(f"  MAE  : {mae:.4f}")
 
-    # coeficientes del modelo
-    print("\n  coeficientes:")
-    for feat, coef in zip(FEATURES, modelo.coef_):
-        print(f"    {feat:>15} : {coef:+.4f}")
-    print(f"    {'intercepto':>15} : {modelo.intercept_:+.4f}")
-
-    # grafico real vs predicho sobre el conjunto de prueba
-    plt.figure(figsize=(6, 5))
-    plt.scatter(y_test, y_pred, alpha=0.6, color="darkorange")
-    plt.plot([0, 1], [0, 1], "r--", label="prediccion perfecta")
-    plt.xlabel("resultado real (test)")
-    plt.ylabel("resultado predicho")
-    plt.title("Real vs Predicho — Regresion Lineal")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    graficar_residuos(y_test, y_pred, "Regresion Lineal")
-    # guardar solo el modelo entrenado con X_train
     with open(LR_MODEL, "wb") as f:
         pickle.dump(modelo, f)
     print(f"\nmodelo guardado en '{LR_MODEL}'")
 
-    return modelo
-
-
-# ------------------------------------------------------
-# PREDICCION — REGRESION LINEAL
-# con pickle, para no re entrenar el modelo
-# ------------------------------------------------------
 def predecir_lineal(df):
-    print("\n--- PREDICCION REGRESION LINEAL MULTIPLE---\n")
-
+    print("\n--- PREDICCION REGRESION LINEAL ---\n")
     if not os.path.exists(LR_MODEL):
         print(f"no se encontro '{LR_MODEL}', entrena primero con la opcion 3")
         return
 
     with open(LR_MODEL, "rb") as f:
         modelo = pickle.load(f)
-    print(f"modelo cargado desde '{LR_MODEL}'")
 
-    media_uc    = round(df["goles_uc"].mean(), 1)
-    media_rival = round(df["goles_rival"].mean(), 1)
     sig_partido = len(df) + 1
+    cond_str = input("condicion (Local/Visita) [Enter=Local]  : ").strip()
+    condicion = cond_str.capitalize() if cond_str else "Local"
+    es_local = 1 if condicion == "Local" else 0
 
-    print(f"\npromedios historicos: UC={media_uc} | rival={media_rival}")
-    print("(presiona Enter para usar el promedio)\n")
+    X_nuevo = pd.DataFrame([{"n_partido": sig_partido, "es_local": es_local}])
 
-    try:
-        guc_str  = input(f"goles esperados UC    [Enter={media_uc}]: ").strip()
-        grv_str  = input(f"goles esperados rival [Enter={media_rival}]: ").strip()
-        cond_str = input("condicion (Local/Visita) [Enter=Local]  : ").strip()
-
-        goles_uc    = float(guc_str)  if guc_str  else media_uc
-        goles_rival = float(grv_str)  if grv_str  else media_rival
-        condicion   = cond_str.capitalize() if cond_str else "Local"
-
-        if condicion not in ("Local", "Visita"):
-            print("condicion no reconocida, se usa Local")
-            condicion = "Local"
-
-    except ValueError:
-        print("entrada invalida, se usan valores por defecto")
-        goles_uc, goles_rival, condicion = media_uc, media_rival, "Local"
-
-    es_local      = 1 if condicion == "Local" else 0
-    goles_totales = int(goles_uc) + int(goles_rival)
-
-    X_nuevo = pd.DataFrame([{
-        "goles_uc":      goles_uc,
-        "goles_rival":   goles_rival,
-        "goles_totales": goles_totales,
-        "n_partido":     sig_partido,
-        "es_local":      es_local
-    }])[FEATURES]
-
-    # clip para mantener el resultado en el rango valido [0, 1]
     valor = float(np.clip(modelo.predict(X_nuevo)[0], 0.0, 1.0))
+    etiqueta = "GANA UC" if valor >= 0.75 else ("EMPATE" if valor >= 0.25 else "PIERDE UC")
 
-    if valor >= 0.75:
-        etiqueta = "GANA UC"
-    elif valor >= 0.25:
-        etiqueta = "EMPATE"
-    else:
-        etiqueta = "PIERDE UC"
-
-    print(f"\n  partido #{sig_partido} | {condicion} | {int(goles_uc)}-{int(goles_rival)}")
+    print(f"\n  partido #{sig_partido} | {condicion}")
     print(f"  score predicho : {valor:.4f}")
     print(f"  resultado      : {etiqueta}")
 
 
-# -------------------------------------------------------
-# ENTRENAMIENTO — RANDOM FOREST
-# mismo split que la regresion lineal (random_state=42)
-# el modelo solo ve X_train durante el fit
-# -------------------------------------------------------
-def entrenar_rf(df):
-    print("\n--- ENTRENAMIENTO RANDOM FOREST ---\n")
-
-    X_train, X_test, y_train, y_test = preparar_split(df)
-    print(f"entrenamiento: {len(X_train)} partidos | prueba: {len(X_test)} partidos")
-
-    modelo = RandomForestRegressor(
-        n_estimators=100,  # cantidad de arboles
-        max_depth=5,       # profundidad maxima para evitar sobreajuste
-        random_state=42
-    )
-    # fit solo sobre el conjunto de entrenamiento
+def entrenar_multiple(df):
+    print("\n--- ENTRENAMIENTO REGRESION LINEAL MULTIPLE ---\n")
+    X_train, X_test, y_train, y_test = preparar_split_resultado(df)
+    
+    modelo = LinearRegression()
     modelo.fit(X_train, y_train)
 
-    # metricas sobre el conjunto de prueba (datos no vistos)
-    y_train_pred = modelo.predict(X_train)
     y_pred = modelo.predict(X_test)
+    print(f"  R²   : {r2_score(y_test, y_pred):.4f}")
+    print(f"  RMSE : {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
 
-    r2_train   = r2_score(y_train, y_train_pred)
-    rmse_train = np.sqrt(mean_squared_error(y_train, y_train_pred))
-    mae_train  = mean_absolute_error(y_train, y_train_pred)
+    with open(MLR_MODEL, "wb") as f:
+        pickle.dump(modelo, f)
+    print(f"\nmodelo guardado en '{MLR_MODEL}'")
 
-    r2   = r2_score(y_test, y_pred)
-    rmse = np.sqrt(mean_squared_error(y_test, y_pred))
-    mae  = mean_absolute_error(y_test, y_pred)
+def predecir_multiple(df):
+    print("\n--- PREDICCION REGRESION LINEAL MULTIPLE ---\n")
+    if not os.path.exists(MLR_MODEL):
+        print(f"no se encontro '{MLR_MODEL}', entrena primero con la opcion 5")
+        return
 
-    print(f"\nENTRENAMIENTO:")
-    print(f"  R²   : {r2_train:.4f}")
-    print(f"  RMSE : {rmse_train:.4f}")
-    print(f"  MAE  : {mae_train:.4f}")
+    with open(MLR_MODEL, "rb") as f:
+        modelo = pickle.load(f)
 
-    print(f"\nPRUEBA:")
-    print(f"  R²   : {r2:.4f}")
-    print(f"  RMSE : {rmse:.4f}")
-    print(f"  MAE  : {mae:.4f}")
+    sig_partido = len(df) + 1
+    cond_str = input("condicion (Local/Visita) [Enter=Local]  : ").strip()
+    condicion = cond_str.capitalize() if cond_str else "Local"
+    es_local = 1 if condicion == "Local" else 0
 
-    # importancia de variables segun el bosque
-    importancias = pd.Series(modelo.feature_importances_, index=FEATURES).sort_values(ascending=False)
-    print("\n  importancia de variables:")
-    for feat, val in importancias.items():
-        barra = "#" * int(val * 30)
-        print(f"    {feat:>15}: {val:.4f}  {barra}")
+    X_nuevo = pd.DataFrame([{"n_partido": sig_partido, "es_local": es_local}])
 
-    # grafico real vs predicho
-    plt.figure(figsize=(6, 5))
-    plt.scatter(y_test, y_pred, alpha=0.6, color="steelblue")
-    plt.plot([0, 1], [0, 1], "r--", label="prediccion perfecta")
-    plt.xlabel("resultado real (test)")
-    plt.ylabel("resultado predicho")
-    plt.title("Real vs Predicho — Random Forest")
-    plt.legend()
-    plt.tight_layout()
-    plt.show()
-    graficar_residuos(y_test, y_pred, "Random Forest")
-    # guardar el modelo entrenado solo con X_train
+    valor = float(np.clip(modelo.predict(X_nuevo)[0], 0.0, 1.0))
+    etiqueta = "GANA UC" if valor >= 0.75 else ("EMPATE" if valor >= 0.25 else "PIERDE UC")
+
+    print(f"\n  partido #{sig_partido} | {condicion}")
+    print(f"  score predicho : {valor:.4f}")
+    print(f"  resultado      : {etiqueta}")
+
+
+def entrenar_rf(df):
+    print("\n--- ENTRENAMIENTO RANDOM FOREST ---\n")
+    X_train, X_test, y_train, y_test = preparar_split_resultado(df)
+    
+    modelo = RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42)
+    modelo.fit(X_train, y_train)
+
+    y_pred = modelo.predict(X_test)
+    print(f"  R²   : {r2_score(y_test, y_pred):.4f}")
+    print(f"  RMSE : {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
+
     with open(RF_MODEL, "wb") as f:
         pickle.dump(modelo, f)
     print(f"\nmodelo guardado en '{RF_MODEL}'")
 
-    return modelo
 
-
-# -------------------------------------------------------
-# PREDICCION — RANDOM FOREST
-# carga el pkl, nunca re-entrena con los datos actuales
-# -------------------------------------------------------
 def predecir_rf(df):
     print("\n--- PREDICCION RANDOM FOREST ---\n")
-
     if not os.path.exists(RF_MODEL):
-        print(f"no se encontro '{RF_MODEL}', entrena primero con la opcion 6")
+        print(f"no se encontro '{RF_MODEL}', entrena primero con la opcion 7")
         return
 
     with open(RF_MODEL, "rb") as f:
         modelo = pickle.load(f)
-    print(f"modelo cargado desde '{RF_MODEL}'")
 
-    media_uc    = round(df["goles_uc"].mean(), 1)
-    media_rival = round(df["goles_rival"].mean(), 1)
     sig_partido = len(df) + 1
+    cond_str = input("condicion (Local/Visita) [Enter=Local]  : ").strip()
+    condicion = cond_str.capitalize() if cond_str else "Local"
+    es_local = 1 if condicion == "Local" else 0
 
-    print(f"\npromedios historicos: UC={media_uc} | rival={media_rival}")
-    print("(presiona Enter para usar el promedio)\n")
-
-    try:
-        guc_str  = input(f"goles esperados UC    [Enter={media_uc}]: ").strip()
-        grv_str  = input(f"goles esperados rival [Enter={media_rival}]: ").strip()
-        cond_str = input("condicion (Local/Visita) [Enter=Local]  : ").strip()
-
-        goles_uc    = float(guc_str)  if guc_str  else media_uc
-        goles_rival = float(grv_str)  if grv_str  else media_rival
-        condicion   = cond_str.capitalize() if cond_str else "Local"
-
-        if condicion not in ("Local", "Visita"):
-            print("condicion no reconocida, se usa Local")
-            condicion = "Local"
-
-    except ValueError:
-        print("entrada invalida, se usan valores por defecto")
-        goles_uc, goles_rival, condicion = media_uc, media_rival, "Local"
-
-    es_local      = 1 if condicion == "Local" else 0
-    goles_totales = int(goles_uc) + int(goles_rival)
-
-    X_nuevo = pd.DataFrame([{
-        "goles_uc":      goles_uc,
-        "goles_rival":   goles_rival,
-        "goles_totales": goles_totales,
-        "n_partido":     sig_partido,
-        "es_local":      es_local
-    }])[FEATURES]
+    X_nuevo = pd.DataFrame([{"n_partido": sig_partido, "es_local": es_local}])
 
     valor = float(np.clip(modelo.predict(X_nuevo)[0], 0.0, 1.0))
+    etiqueta = "GANA UC" if valor >= 0.75 else ("EMPATE" if valor >= 0.25 else "PIERDE UC")
 
-    if valor >= 0.75:
-        etiqueta = "GANA UC"
-    elif valor >= 0.25:
-        etiqueta = "EMPATE"
-    else:
-        etiqueta = "PIERDE UC"
-
-    print(f"\n  partido #{sig_partido} | {condicion} | {int(goles_uc)}-{int(goles_rival)}")
+    print(f"\n  partido #{sig_partido} | {condicion}")
     print(f"  score predicho : {valor:.4f}")
     print(f"  resultado      : {etiqueta}")
+
+
+def comparar_modelos(df):
+    print("\n--- COMPARACION DE MODELOS (RESULTADO) ---\n")
+    if not all(os.path.exists(m) for m in [LR_MODEL, MLR_MODEL, RF_MODEL]):
+        print("Faltan modelos. Por favor entrena los 3 modelos primero (opciones 3, 5 y 7).")
+        return
+
+    with open(LR_MODEL, "rb") as f: lr = pickle.load(f)
+    with open(MLR_MODEL, "rb") as f: mlr = pickle.load(f)
+    with open(RF_MODEL, "rb") as f: rf = pickle.load(f)
+
+    _, X_test, _, y_test = preparar_split_resultado(df)
+
+    for nombre, modelo in [("Reg Lineal", lr), ("Reg Multiple", mlr), ("Random Forest", rf)]:
+        y_pred = modelo.predict(X_test)
+        print(f"  {nombre:<15} -> R²: {r2_score(y_test, y_pred):.4f} | RMSE: {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
+
+
+# =======================================================
+# GOLES //AYUDADO POR GEMINIS
+# BASADOS EN LA MISMA LOGICA DE RESULTADOS, PERO AHORA PREDECIMOS LOS GOLES DE LA UC Y SU RIVAL(CALERA,PERO NO TENEMOS COMO IDENTIFICAR AL RIVAL)
+# =======================================================
+
+def entrenar_goles_regresion(df):
+    print("\n--- ENTRENANDO GOLES: REGRESION MULTIPLE ---\n")
+    X_train, X_test, y_train, y_test = preparar_split_goles(df)
+
+    modelo_goles_regresion = LinearRegression()
+    modelo_goles_regresion.fit(X_train, y_train)
+
+    y_pred = modelo_goles_regresion.predict(X_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    
+    print(f"  Margen de error (MAE) : +/- {mae:.2f} goles")
+    
+    with open(REGRESION_GOLES_MODEL, "wb") as f:
+        pickle.dump(modelo_goles_regresion, f)
+    print(f"modelo guardado en '{REGRESION_GOLES_MODEL}'")
+
+
+def predecir_goles_regresion(df):
+    print("\n--- PREDICIENDO GOLES: REGRESION MULTIPLE ---\n")
+    if not os.path.exists(REGRESION_GOLES_MODEL):
+        print(f"No se encontro '{REGRESION_GOLES_MODEL}'. Entrena la opción 10 primero.")
+        return
+
+    with open(REGRESION_GOLES_MODEL, "rb") as f:
+        modelo = pickle.load(f)
+
+    sig_partido = len(df) + 1
+    cond_str = input("condicion (Local/Visita) [Enter=Local]  : ").strip()
+    condicion = cond_str.capitalize() if cond_str else "Local"
+    es_local = 1 if condicion == "Local" else 0
+
+    X_nuevo = pd.DataFrame([{"n_partido": sig_partido, "es_local": es_local}])
+    
+    # Clip para evitar predicciones matemáticas de goles negativos (-0.5)
+    prediccion = np.clip(modelo.predict(X_nuevo)[0], 0, None)
+    
+    goles_uc_pred = int(round(prediccion[0]))
+    goles_rival_pred = int(round(prediccion[1]))
+
+    print(f"\n  Partido #{sig_partido} | {condicion}")
+    print(f"  Marcador (Reg. Múltiple): UC {goles_uc_pred} - {goles_rival_pred} Rival")
+
+
+def entrenar_goles_rf(df):
+    print("\n--- ENTRENANDO GOLES: RANDOM FOREST ---\n")
+    X_train, X_test, y_train, y_test = preparar_split_goles(df)
+
+    modelo_goles_rf = RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42)
+    modelo_goles_rf.fit(X_train, y_train)
+
+    y_pred = modelo_goles_rf.predict(X_test)
+    mae = mean_absolute_error(y_test, y_pred)
+    
+    print(f"  Margen de error (MAE) : +/- {mae:.2f} goles")
+    
+    with open(RF_GOLES_MODEL, "wb") as f:
+        pickle.dump(modelo_goles_rf, f)
+    print(f"modelo guardado en '{RF_GOLES_MODEL}'")
+
+
+def predecir_goles_rf(df):
+    print("\n--- PREDICIENDO GOLES: RANDOM FOREST ---\n")
+    if not os.path.exists(RF_GOLES_MODEL):
+        print(f"No se encontro '{RF_GOLES_MODEL}'. Entrena la opción 12 primero.")
+        return
+
+    with open(RF_GOLES_MODEL, "rb") as f:
+        modelo = pickle.load(f)
+
+    sig_partido = len(df) + 1
+    cond_str = input("condicion (Local/Visita) [Enter=Local]  : ").strip()
+    condicion = cond_str.capitalize() if cond_str else "Local"
+    es_local = 1 if condicion == "Local" else 0
+
+    X_nuevo = pd.DataFrame([{"n_partido": sig_partido, "es_local": es_local}])
+    
+    prediccion = np.clip(modelo.predict(X_nuevo)[0], 0, None)
+    
+    goles_uc_pred = int(round(prediccion[0]))
+    goles_rival_pred = int(round(prediccion[1]))
+
+    print(f"\n  Partido #{sig_partido} | {condicion}")
+    print(f"  Marcador (Random Forest): UC {goles_uc_pred} - {goles_rival_pred} Rival")
 
 
 # -------------------------------------------------------
@@ -424,79 +387,53 @@ def predecir_rf(df):
 def main():
     df = cargar_datos()
 
-    opciones = {"1", "2", "3", "4", "5", "6", "7", "8", "9"}
+    opciones = {str(i) for i in range(1, 16)}
     while True:
-        print("\n--- menu ---")
-        print("")
-        print("  [ datos ]")
-        print("  1. ver datos")
-        print("  2. graficos")
-        print("")
-        print("  [ regresion lineal multiple ]")
-        print("  3. entrenar modelo lineal multiple")
-        print("  4. predecir con modelo lineal")
-        print("")
-        print("  [ random forest ]")
-        print("  5. entrenar random forest")
-        print("  6. predecir con random forest")
-        print("")
-        print("  [ comparar modelos ]")
-        print("  7. ver metricas de ambos modelos")
-        print("")
-        print("  8. salir")
+        print("\n" + "="*35)
+        print("         MENÚ PRINCIPAL")
+        print("="*35)
+        print("\n  [ Exploración ]")
+        print("  1. Ver datos históricos")
+        print("  2. Gráficos y Tendencias")
+        
+        print("\n  [ PREDICCIÓN DE RESULTADO (Ganar/Empate/Perder) ]")
+        print("  3. Entrenar Regresión Lineal")
+        print("  4. Predecir con Regresión Lineal")
+        print("  5. Entrenar Regresión Múltiple")
+        print("  6. Predecir con Regresión Múltiple")
+        print("  7. Entrenar Random Forest")
+        print("  8. Predecir con Random Forest")
+        print("  9. Comparar modelos de resultados")
+
+        print("\n  [ PREDICCIÓN DE GOLES EXACTOS ]")
+        print("  10. Entrenar predicción de goles (Regresión Múltiple)")
+        print("  11. Predecir marcador (Regresión Múltiple)")
+        print("  12. Entrenar predicción de goles (Random Forest)")
+        print("  13. Predecir marcador(Random Forest)")
+        
+        print("\n  14. Salir")
 
         op = input("\n>> ").strip()
         if op not in opciones:
-            print("eso no es una opcion valida")
+            print("Eso no es una opción válida")
             continue
 
-        if   op == "1": print(df.head(20).to_string())
+        if   op == "1": print(df.tail(20).to_string())
         elif op == "2": hacer_graficos(df)
         elif op == "3": entrenar_lineal(df)
         elif op == "4": predecir_lineal(df)
-        elif op == "5": entrenar_rf(df)
-        elif op == "6": predecir_rf(df)
-        elif op == "7": comparar_modelos(df)
-        elif op == "8": break
-
-
-# -------------------------------------------------------
-# COMPARACION — muestra metricas de ambos modelos juntas
-# usa el mismo split para que la comparacion sea justa
-# -------------------------------------------------------
-def comparar_modelos(df):
-    print("\n--- COMPARACION DE MODELOS ---\n")
-
-    if not os.path.exists(LR_MODEL) or not os.path.exists(RF_MODEL):
-        print("faltan modelos entrenados. entrena primero ambos (opciones 3 y 5)")
-        return
-
-    # cargamos los modelos guardados — no re-entrenamos
-    with open(LR_MODEL, "rb") as f:
-        lr = pickle.load(f)
-    with open(RF_MODEL, "rb") as f:
-        rf = pickle.load(f)
-
-    # mismo split que en entrenamiento para comparar sobre los mismos datos de prueba
-    _, X_test, _, y_test = preparar_split(df)
-
-    resultados = {}
-    for nombre, modelo in [("Regresion Lineal", lr), ("Random Forest", rf)]:
-        y_pred = modelo.predict(X_test)
-        resultados[nombre] = {
-            "R²":   round(r2_score(y_test, y_pred), 4),
-            "RMSE": round(np.sqrt(mean_squared_error(y_test, y_pred)), 4),
-            "MAE":  round(mean_absolute_error(y_test, y_pred), 4),
-        }
-
-    print(f"  {'modelo':<20} {'R²':>8} {'RMSE':>8} {'MAE':>8}")
-    print(f"  {'-'*46}")
-    for nombre, m in resultados.items():
-        print(f"  {nombre:<20} {m['R²']:>8} {m['RMSE']:>8} {m['MAE']:>8}")
-
-    mejor = max(resultados, key=lambda k: resultados[k]["R²"])
-    print(f"\n  mejor R² en test: {mejor}")
+        elif op == "5": entrenar_multiple(df)
+        elif op == "6": predecir_multiple(df)
+        elif op == "7": entrenar_rf(df)
+        elif op == "8": predecir_rf(df)
+        elif op == "9": comparar_modelos(df)
+        elif op == "10": entrenar_goles_regresion(df)
+        elif op == "11": predecir_goles_regresion(df)
+        elif op == "12": entrenar_goles_rf(df)
+        elif op == "13": predecir_goles_rf(df)
+        elif op == "14": break
 
 
 if __name__ == "__main__":
+    main()
     main()
