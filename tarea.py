@@ -176,13 +176,24 @@ def entrenar_lineal(df):
     modelo.fit(X_train, y_train)
 
     # evaluar con X_test
+    y_train_pred = modelo.predict(X_train)
     y_pred = modelo.predict(X_test)
+
+    r2_train   = r2_score(y_train, y_train_pred)
+    rmse_train = np.sqrt(mean_squared_error(y_train, y_train_pred))
+    mae_train  = mean_absolute_error(y_train, y_train_pred)
 
     r2   = r2_score(y_test, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
     mae  = mean_absolute_error(y_test, y_pred)
 
-    print(f"\n  R²   : {r2:.4f}")
+    print(f"\nENTRENAMIENTO:")
+    print(f"  R²   : {r2_train:.4f}")
+    print(f"  RMSE : {rmse_train:.4f}")
+    print(f"  MAE  : {mae_train:.4f}")
+
+    print(f"\nPRUEBA:")
+    print(f"  R²   : {r2:.4f}")
     print(f"  RMSE : {rmse:.4f}")
     print(f"  MAE  : {mae:.4f}")
 
@@ -296,13 +307,24 @@ def entrenar_rf(df):
     modelo.fit(X_train, y_train)
 
     # metricas sobre el conjunto de prueba (datos no vistos)
+    y_train_pred = modelo.predict(X_train)
     y_pred = modelo.predict(X_test)
+
+    r2_train   = r2_score(y_train, y_train_pred)
+    rmse_train = np.sqrt(mean_squared_error(y_train, y_train_pred))
+    mae_train  = mean_absolute_error(y_train, y_train_pred)
 
     r2   = r2_score(y_test, y_pred)
     rmse = np.sqrt(mean_squared_error(y_test, y_pred))
     mae  = mean_absolute_error(y_test, y_pred)
 
-    print(f"\n  R²   : {r2:.4f}")
+    print(f"\nENTRENAMIENTO:")
+    print(f"  R²   : {r2_train:.4f}")
+    print(f"  RMSE : {rmse_train:.4f}")
+    print(f"  MAE  : {mae_train:.4f}")
+
+    print(f"\nPRUEBA:")
+    print(f"  R²   : {r2:.4f}")
     print(f"  RMSE : {rmse:.4f}")
     print(f"  MAE  : {mae:.4f}")
 
