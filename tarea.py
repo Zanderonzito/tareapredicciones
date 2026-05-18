@@ -1,4 +1,4 @@
-import requests
+import requests #// SI DA ERROR CAMBIAR INTERPRETE A (3.11.X) GLOBAL
 import pandas as pd
 import numpy as np
 import os
