@@ -138,6 +138,7 @@ def hacer_graficos(df):
 # =======================================================
 # RESULTADOS - (ENTRENAMIENTO MODELO , PREDICCIÓN , COMPARACIÓN , RANDOM FOREST) //AYUDADO POR CLAUDE
 # entrena solo con X_train, evalua en X_test
+# SIN PICKLE, los modelos viven en la memoria RAM
 # random forest con mismo split que la regresion lineal (random_state=42)
 # =======================================================
 
@@ -210,6 +211,7 @@ def comparar_modelos(df, mod_mlr, mod_rf):
 # =======================================================
 # GOLES // AYUDADO POR GEMINI
 # BASADOS EN LA MISMA LOGICA DE RESULTADOS, PERO AHORA PREDECIMOS LOS GOLES DE LA UC Y SU RIVAL
+# SIN PICKLE, guardamos en memoria RAM
 # =======================================================
 
 def entrenar_goles(df, modelo, nombre_modelo):
@@ -267,12 +269,28 @@ def predecir_goles(df, modelo, nombre_modelo):
     print(f"\n  Partido #{sig_partido} | {condicion}")
     print(f"  Marcador ({nombre_modelo}): UC {goles_uc_pred} - {goles_rival_pred} Rival")
 
+def comparar_modelos_goles(df, mod_mlr, mod_rf):
+    print("\n--- COMPARACION DE MODELOS (GOLES) ---\n")
+    if mod_mlr is None or mod_rf is None:
+        print("Faltan modelos. Por favor entrena los 2 modelos primero (opciones 8 y 10).")
+        return
+
+    _, X_test, _, y_test = preparar_split_goles(df)
+
+    for nombre, modelo in [("Reg Multiple", mod_mlr), ("Random Forest", mod_rf)]:
+        y_pred = modelo.predict(X_test)
+        r2 = r2_score(y_test, y_pred)
+        rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+        mae = mean_absolute_error(y_test, y_pred)
+        print(f"  {nombre:<15} -> R²: {r2:.4f} | RMSE: {rmse:.4f} | MAE: {mae:.4f}")
+
 
 # -------------------------------------------------------
 # MENU PRINCIPAL
 # -------------------------------------------------------
 def main():
     df = cargar_datos()
+
     modelos = {
         "mlr_res": None,
         "rf_res": None,
@@ -280,7 +298,7 @@ def main():
         "rf_goles": None
     }
 
-    opciones = {str(i) for i in range(1, 13)}
+    opciones = {str(i) for i in range(1, 14)}
     while True:
         print("\n" + "="*35)
         print("         MENÚ PRINCIPAL")
@@ -298,11 +316,12 @@ def main():
 
         print("\n  [ PREDICCIÓN DE GOLES EXACTOS ]")
         print("  8. Entrenar predicción de goles (Regresión Múltiple)")
-        print("  9. Predecir goles (Regresión Múltiple)")
+        print("  9. Predecir marcador (Regresión Múltiple)")
         print("  10. Entrenar predicción de goles (Random Forest)")
-        print("  11. Predecir goles (Random Forest)")
+        print("  11. Predecir marcador (Random Forest)")
+        print("  12. Comparar modelos de goles")
         
-        print("\n  12. Salir")
+        print("\n  13. Salir")
 
         op = input("\n>> ").strip()
         if op not in opciones:
@@ -311,22 +330,15 @@ def main():
 
         if   op == "1": print(df.tail(20).to_string())
         elif op == "2": hacer_graficos(df)
-        
-        # Flujo de predicción de Resultados
         elif op == "3": modelos["mlr_res"] = entrenar_resultado(df, LinearRegression(), "Regresión Múltiple")
         elif op == "4": predecir_resultado(df, modelos["mlr_res"], "Regresión Múltiple")
         elif op == "5": modelos["rf_res"]  = entrenar_resultado(df, RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42), "Random Forest")
         elif op == "6": predecir_resultado(df, modelos["rf_res"], "Random Forest")
         elif op == "7": comparar_modelos(df, modelos["mlr_res"], modelos["rf_res"])
-        
-        # Flujo de predicción de Goles
         elif op == "8":  modelos["mlr_goles"] = entrenar_goles(df, LinearRegression(), "Regresión Múltiple")
         elif op == "9":  predecir_goles(df, modelos["mlr_goles"], "Regresión Múltiple")
         elif op == "10": modelos["rf_goles"]  = entrenar_goles(df, RandomForestRegressor(n_estimators=100, max_depth=5, random_state=42), "Random Forest")
         elif op == "11": predecir_goles(df, modelos["rf_goles"], "Random Forest")
-        
-        elif op == "12": break
-
-
-if __name__ == "__main__":
-    main()
+        elif op == "12": comparar_modelos_goles(df, modelos["mlr_goles"], modelos["rf_goles"])
+        elif op == "13": break
+if __name__ == "__main__": main()
