@@ -1,4 +1,4 @@
-import requests #SI APARECE ERROR CAMBIAR INTERPRETE (3.11 [GLOBAL])
+import requests
 import pandas as pd
 import numpy as np
 import os
@@ -20,7 +20,7 @@ CSV_PATH = "datos_catolica.csv"
 
 # Modelos para predecir Resultado
 LR_MODEL = "modelo_lineal.pkl"       
-MLR_MODEL = "modelo_multiple.pkl"    
+REGRESION_MODEL = "modelo_multiple.pkl"
 RF_MODEL = "modelo_rf.pkl"           
 
 # Modelos para predecir Goles (UC vs Rival)
@@ -148,7 +148,7 @@ def hacer_graficos(df):
 # =======================================================
 # RESULTADOS - (ENTRENAMIENTO MODELO , PREDICCIÓN , COMPARACIÓN , RANDOM FOREST) //AYUDADO POR CLAUDE
 #entrena solo con X_train, evalua en X_test
-#guarda el modelo en X_MODEL para usarlo en prediccion
+#guarda el modelo en LR_MODEL para usarlo en prediccion
 #con pickle, para no re-entrenar el modelo
 # random forest con mismo split que la regresion lineal (random_state=42)
 # =======================================================
@@ -206,17 +206,17 @@ def entrenar_multiple(df):
     print(f"  R²   : {r2_score(y_test, y_pred):.4f}")
     print(f"  RMSE : {np.sqrt(mean_squared_error(y_test, y_pred)):.4f}")
 
-    with open(MLR_MODEL, "wb") as f:
+    with open(REGRESION_MODEL, "wb") as f:
         pickle.dump(modelo, f)
-    print(f"\nmodelo guardado en '{MLR_MODEL}'")
+    print(f"\nmodelo guardado en '{REGRESION_MODEL}'")
 
 def predecir_multiple(df):
     print("\n--- PREDICCION REGRESION LINEAL MULTIPLE ---\n")
-    if not os.path.exists(MLR_MODEL):
-        print(f"no se encontro '{MLR_MODEL}', entrena primero con la opcion 5")
+    if not os.path.exists(REGRESION_MODEL):
+        print(f"no se encontro '{REGRESION_MODEL}', entrena primero con la opcion 5")
         return
 
-    with open(MLR_MODEL, "rb") as f:
+    with open(REGRESION_MODEL, "rb") as f:
         modelo = pickle.load(f)
 
     sig_partido = len(df) + 1
@@ -276,12 +276,12 @@ def predecir_rf(df):
 
 def comparar_modelos(df):
     print("\n--- COMPARACION DE MODELOS (RESULTADO) ---\n")
-    if not all(os.path.exists(m) for m in [LR_MODEL, MLR_MODEL, RF_MODEL]):
+    if not all(os.path.exists(m) for m in [LR_MODEL, REGRESION_MODEL, RF_MODEL]):
         print("Faltan modelos. Por favor entrena los 3 modelos primero (opciones 3, 5 y 7).")
         return
 
     with open(LR_MODEL, "rb") as f: lr = pickle.load(f)
-    with open(MLR_MODEL, "rb") as f: mlr = pickle.load(f)
+    with open(REGRESION_MODEL, "rb") as f: mlr = pickle.load(f)
     with open(RF_MODEL, "rb") as f: rf = pickle.load(f)
 
     _, X_test, _, y_test = preparar_split_resultado(df)
@@ -292,7 +292,7 @@ def comparar_modelos(df):
 
 
 # =======================================================
-# GOLES //AYUDADO POR GEMINIS
+# GOLES // AYUDADO POR GEMINI
 # BASADOS EN LA MISMA LOGICA DE RESULTADOS, PERO AHORA PREDECIMOS LOS GOLES DE LA UC Y SU RIVAL(CALERA,PERO NO TENEMOS COMO IDENTIFICAR AL RIVAL)
 # =======================================================
 
