@@ -2,5 +2,5 @@
 Integrantes
 Rigo Vega
 Nicolas Maldonado
-Favi Muñoz
+Favio Muñoz
 Martin Caamaño
