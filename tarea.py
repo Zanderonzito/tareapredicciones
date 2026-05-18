@@ -138,7 +138,6 @@ def hacer_graficos(df):
 # =======================================================
 # RESULTADOS - (ENTRENAMIENTO MODELO , PREDICCIÓN , COMPARACIÓN , RANDOM FOREST) //AYUDADO POR CLAUDE
 # entrena solo con X_train, evalua en X_test
-# SIN PICKLE, los modelos viven en la memoria RAM
 # random forest con mismo split que la regresion lineal (random_state=42)
 # =======================================================
 
@@ -211,7 +210,6 @@ def comparar_modelos(df, mod_mlr, mod_rf):
 # =======================================================
 # GOLES // AYUDADO POR GEMINI
 # BASADOS EN LA MISMA LOGICA DE RESULTADOS, PERO AHORA PREDECIMOS LOS GOLES DE LA UC Y SU RIVAL
-# SIN PICKLE, guardamos en memoria RAM
 # =======================================================
 
 def entrenar_goles(df, modelo, nombre_modelo):
@@ -275,9 +273,6 @@ def predecir_goles(df, modelo, nombre_modelo):
 # -------------------------------------------------------
 def main():
     df = cargar_datos()
-
-    # Este diccionario actúa como nuestra RAM virtual. 
-    # Aquí se guardan los modelos en vivo sin usar archivos .pkl
     modelos = {
         "mlr_res": None,
         "rf_res": None,
@@ -303,9 +298,9 @@ def main():
 
         print("\n  [ PREDICCIÓN DE GOLES EXACTOS ]")
         print("  8. Entrenar predicción de goles (Regresión Múltiple)")
-        print("  9. Predecir marcador (Regresión Múltiple)")
+        print("  9. Predecir goles (Regresión Múltiple)")
         print("  10. Entrenar predicción de goles (Random Forest)")
-        print("  11. Predecir marcador (Random Forest)")
+        print("  11. Predecir goles (Random Forest)")
         
         print("\n  12. Salir")
 
